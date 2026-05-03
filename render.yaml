@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: reeldissect
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free          # upgrade to "starter" for no sleep + more RAM
+    envVars:
+      - key: NVIDIA_NIM_API_KEY
+        sync: false     # you'll paste this in the Render dashboard
+      - key: NIM_MODEL
+        value: meta/llama-3.1-8b-instruct
+    healthCheckPath: /api/health

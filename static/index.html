@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="theme-color" content="#7c3aed"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>ReelDissect</title>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="icon" href="/icon-192.svg"/>
+<style>
+  /* ── Reset & tokens ────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #0a0a0f;
+    --surface:    #13131a;
+    --surface2:   #1c1c28;
+    --border:     #2a2a3a;
+    --violet:     #7c3aed;
+    --violet-lt:  #a78bfa;
+    --violet-dim: #3b1f7a;
+    --gold:       #fbbf24;
+    --green:      #34d399;
+    --red:        #f87171;
+    --text:       #e2e8f0;
+    --muted:      #64748b;
+    --radius:     14px;
+    --radius-sm:  8px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+  #app { display: flex; flex-direction: column; height: 100dvh; }
+
+  header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px 10px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header svg { flex-shrink: 0; }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+  header h1 span { color: var(--violet-lt); }
+
+  #main { flex: 1; overflow-y: auto; padding: 16px; }
+
+  /* ── Screens ───────────────────────────────────────────────────────────── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── Empty state ───────────────────────────────────────────────────────── */
+  #empty {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center;
+    gap: 12px; height: 70dvh;
+  }
+  #empty .icon { font-size: 56px; }
+  #empty h2 { font-size: 20px; font-weight: 700; }
+  #empty p { color: var(--muted); max-width: 280px; font-size: 14px; }
+  #empty .hint {
+    margin-top: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 13px; color: var(--muted);
+    max-width: 300px;
+  }
+  #empty .hint strong { color: var(--text); display: block; margin-bottom: 4px; }
+
+  /* ── Manual URL input ──────────────────────────────────────────────────── */
+  .url-bar {
+    display: flex; gap: 8px; margin-bottom: 20px;
+  }
+  .url-bar input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 14px;
+    color: var(--text); font-size: 14px; outline: none;
+  }
+  .url-bar input:focus { border-color: var(--violet); }
+  .url-bar input::placeholder { color: var(--muted); }
+  .url-bar button {
+    background: var(--violet); border: none; border-radius: var(--radius-sm);
+    padding: 10px 16px; color: #fff; font-size: 14px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  }
+  .url-bar button:active { opacity: .8; }
+
+  /* ── Loading screen ────────────────────────────────────────────────────── */
+  #loading {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 20px; height: 70dvh; text-align: center;
+  }
+  .spinner {
+    width: 52px; height: 52px;
+    border: 4px solid var(--border);
+    border-top-color: var(--violet);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading h2 { font-size: 18px; font-weight: 700; }
+  #loading p { color: var(--muted); font-size: 14px; max-width: 260px; }
+  #loading .url-pill {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 99px; padding: 6px 14px;
+    font-size: 12px; color: var(--muted);
+    max-width: 280px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ── Result card ───────────────────────────────────────────────────────── */
+  .result-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 16px;
+    animation: fadeUp .35s ease both;
+  }
+  @keyframes fadeUp { from { opacity:0; transform: translateY(12px); } }
+
+  .result-card .card-title {
+    font-size: 17px; font-weight: 700; margin-bottom: 6px; line-height: 1.35;
+  }
+  .result-card .card-meta {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .tag {
+    background: var(--violet-dim); color: var(--violet-lt);
+    border-radius: 99px; padding: 3px 10px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .4px;
+  }
+  .tag.green { background: #063f30; color: var(--green); }
+  .tag.gold  { background: #3d2a00; color: var(--gold); }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .6px; color: var(--muted); margin: 14px 0 8px;
+  }
+
+  .summary { color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+  .points { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .points li {
+    display: flex; gap: 10px; align-items: flex-start;
+    background: var(--surface2); border-radius: var(--radius-sm);
+    padding: 10px 12px; font-size: 14px;
+  }
+  .points li::before {
+    content: "•"; color: var(--violet-lt); font-size: 18px; line-height: 1.2;
+    flex-shrink: 0;
+  }
+
+  .queries { display: flex; flex-direction: column; gap: 6px; }
+  .query-btn {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 12px;
+    color: var(--text); font-size: 13px; text-decoration: none;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .query-btn:active { border-color: var(--violet); }
+  .query-btn .q-icon { font-size: 16px; flex-shrink: 0; }
+  .query-btn .q-text { flex: 1; text-align: left; line-height: 1.4; }
+  .query-btn .q-arrow { color: var(--muted); flex-shrink: 0; }
+
+  .mentioned-grid {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .mentioned-row { font-size: 13px; }
+  .mentioned-row .m-label { color: var(--muted); font-weight: 600; }
+  .mentioned-row .m-values { color: var(--text); }
+
+  .transcript-block {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 12px;
+    font-size: 12px; color: var(--muted); line-height: 1.6;
+    font-style: italic;
+  }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  details[open] summary { color: var(--violet-lt); }
+
+  .card-actions {
+    display: flex; gap: 8px; margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .action-btn {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 9px 12px;
+    color: var(--text); font-size: 13px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .action-btn:active { background: var(--border); }
+  .action-btn.danger { color: var(--red); }
+  .action-btn.primary { background: var(--violet); border-color: var(--violet); color: #fff; }
+
+  /* ── History list ──────────────────────────────────────────────────────── */
+  .history-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .history-header h2 { font-size: 16px; font-weight: 700; }
+
+  .hist-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .hist-item:active { border-color: var(--violet); }
+  .hist-item .hi-icon { font-size: 24px; flex-shrink: 0; }
+  .hist-item .hi-body { flex: 1; min-width: 0; }
+  .hist-item .hi-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hist-item .hi-sub { font-size: 12px; color: var(--muted); }
+  .hist-item .hi-arrow { color: var(--muted); }
+
+  /* ── Error banner ──────────────────────────────────────────────────────── */
+  .error-box {
+    background: #2d0808; border: 1px solid var(--red);
+    border-radius: var(--radius); padding: 16px;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .error-box .e-icon { font-size: 22px; flex-shrink: 0; }
+  .error-box h3 { font-size: 15px; font-weight: 700; color: var(--red); margin-bottom: 4px; }
+  .error-box p  { font-size: 13px; color: #fca5a5; }
+  .error-box .retry-btn {
+    margin-top: 10px; background: var(--red); border: none;
+    border-radius: var(--radius-sm); padding: 8px 16px;
+    color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  /* ── Toast ─────────────────────────────────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: #1e1e2e; border: 1px solid var(--border); border-radius: 99px;
+    padding: 10px 20px; font-size: 14px; font-weight: 500;
+    transition: transform .3s ease; pointer-events: none; z-index: 999;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <svg width="32" height="32" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+      <rect width="192" height="192" rx="36" fill="#7c3aed"/>
+      <rect x="20" y="48" width="18" height="96" rx="4" fill="#a78bfa" opacity="0.5"/>
+      <rect x="22" y="56" width="14" height="10" rx="2" fill="#0a0a0f"/>
+      <rect x="22" y="74" width="14" height="10" rx="2" fill="#0a0a0f"/>
+      <rect x="22" y="92" width="14" height="10" rx="2" fill="#0a0a0f"/>
+      <rect x="22" y="110" width="14" height="10" rx="2" fill="#0a0a0f"/>
+      <rect x="154" y="48" width="18" height="96" rx="4" fill="#a78bfa" opacity="0.5"/>
+      <rect x="156" y="56" width="14" height="10" rx="2" fill="#0a0a0f"/>
+      <rect x="156" y="74" width="14" height="10" rx="2" fill="#0a0a0f"/>
+      <rect x="156" y="92" width="14" height="10" rx="2" fill="#0a0a0f"/>
+      <rect x="156" y="110" width="14" height="10" rx="2" fill="#0a0a0f"/>
+      <circle cx="88" cy="90" r="32" fill="none" stroke="#e9d5ff" stroke-width="10"/>
+      <line x1="110" y1="112" x2="130" y2="136" stroke="#e9d5ff" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="72" cy="84" r="4" fill="#fbbf24"/>
+      <rect x="82" y="80" width="26" height="6" rx="3" fill="#fbbf24" opacity="0.7"/>
+      <circle cx="72" cy="98" r="4" fill="#fbbf24"/>
+      <rect x="82" y="94" width="20" height="6" rx="3" fill="#fbbf24" opacity="0.7"/>
+    </svg>
+    <h1>Reel<span>Dissect</span></h1>
+  </header>
+
+  <div id="main">
+
+    <!-- ── Loading screen ──────────────────────────────────────────────── -->
+    <div id="screen-loading" class="screen">
+      <div id="loading">
+        <div class="spinner"></div>
+        <div>
+          <h2>Analyzing reel…</h2>
+          <p id="loading-step">Downloading video</p>
+        </div>
+        <div id="loading-url" class="url-pill"></div>
+      </div>
+    </div>
+
+    <!-- ── Error screen ─────────────────────────────────────────────────── -->
+    <div id="screen-error" class="screen">
+      <div class="error-box">
+        <div class="e-icon">⚠️</div>
+        <div>
+          <h3>Analysis failed</h3>
+          <p id="error-msg">Something went wrong.</p>
+          <button class="retry-btn" onclick="goHome()">← Back</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Result screen ─────────────────────────────────────────────────── -->
+    <div id="screen-result" class="screen">
+      <div id="result-content"></div>
+    </div>
+
+    <!-- ── Home screen ───────────────────────────────────────────────────── -->
+    <div id="screen-home" class="screen active">
+
+      <!-- Manual paste -->
+      <div class="url-bar">
+        <input type="url" id="manual-url" placeholder="Paste a reel URL here…" autocomplete="off"/>
+        <button onclick="analyzeManual()">Go</button>
+      </div>
+
+      <!-- Empty state -->
+      <div id="empty">
+        <div class="icon">🎬</div>
+        <h2>No notes yet</h2>
+        <p>Share any reel, TikTok, YouTube Short, or paste a link above.</p>
+        <div class="hint">
+          <strong>How to use on Android</strong>
+          Open any reel → tap Share → choose <em>ReelDissect</em>
+        </div>
+      </div>
+
+      <!-- History list (hidden until there are items) -->
+      <div id="history-section" style="display:none">
+        <div class="history-header">
+          <h2>Saved notes</h2>
+          <button class="action-btn danger" style="flex:unset;padding:6px 12px;font-size:12px" onclick="clearAll()">Clear all</button>
+        </div>
+        <div id="history-list"></div>
+      </div>
+
+    </div>
+
+  </div><!-- #main -->
+</div><!-- #app -->
+
+<div id="toast"></div>
+
+<script>
+// ── Storage ──────────────────────────────────────────────────────────────────
+const STORE_KEY = "reeldissect_notes";
+
+function loadNotes() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveNotes(notes) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(notes));
+}
+function addNote(analysis) {
+  const notes = loadNotes();
+  const note = { ...analysis, id: Date.now(), savedAt: new Date().toISOString() };
+  notes.unshift(note);
+  saveNotes(notes);
+  return note;
+}
+function deleteNote(id) {
+  const notes = loadNotes().filter(n => n.id !== id);
+  saveNotes(notes);
+}
+function clearAll() {
+  if (!confirm("Delete all saved notes?")) return;
+  localStorage.removeItem(STORE_KEY);
+  renderHome();
+}
+
+// ── Screen routing ───────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById("screen-" + id).classList.add("active");
+}
+function goHome() { showScreen("home"); renderHome(); }
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
+}
+
+// ── Loading steps animation ──────────────────────────────────────────────────
+const STEPS = [
+  "Downloading video…",
+  "Extracting audio…",
+  "Transcribing speech…",
+  "Analyzing with AI…",
+  "Building your notes…",
+];
+let stepInterval;
+function startSteps() {
+  let i = 0;
+  const el = document.getElementById("loading-step");
+  el.textContent = STEPS[0];
+  stepInterval = setInterval(() => {
+    i = Math.min(i + 1, STEPS.length - 1);
+    el.textContent = STEPS[i];
+  }, 4000);
+}
+function stopSteps() { clearInterval(stepInterval); }
+
+// ── Analyze ──────────────────────────────────────────────────────────────────
+async function analyze(url) {
+  url = url.trim();
+  if (!url) return;
+
+  // Show loading
+  document.getElementById("loading-url").textContent = url;
+  showScreen("loading");
+  startSteps();
+
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    stopSteps();
+
+    const note = addNote(data);
+    renderResult(note);
+    showScreen("result");
+
+  } catch (err) {
+    stopSteps();
+    document.getElementById("error-msg").textContent = err.message;
+    showScreen("error");
+  }
+}
+
+function analyzeManual() {
+  const val = document.getElementById("manual-url").value;
+  if (val) analyze(val);
+}
+
+// ── Render result ─────────────────────────────────────────────────────────────
+function renderResult(note) {
+  const tags = (note.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join("");
+  const durationStr = note.duration_seconds
+    ? `<span class="tag green">${Math.round(note.duration_seconds)}s</span>` : "";
+
+  const keyPoints = (note.key_points || [])
+    .map(p => `<li>${esc(p)}</li>`).join("");
+
+  const queries = (note.research_queries || [])
+    .map(q => `
+      <a class="query-btn" href="https://www.google.com/search?q=${encodeURIComponent(q)}" target="_blank" rel="noopener">
+        <span class="q-icon">🔍</span>
+        <span class="q-text">${esc(q)}</span>
+        <span class="q-arrow">↗</span>
+      </a>`).join("");
+
+  const m = note.mentioned || {};
+  const mentionRows = [
+    { label: "People",  vals: m.people        },
+    { label: "Sources", vals: m.sources || m.books_articles },
+    { label: "Concepts",vals: m.concepts      },
+  ].filter(r => r.vals && r.vals.length)
+   .map(r => `<div class="mentioned-row">
+      <span class="m-label">${r.label}: </span>
+      <span class="m-values">${r.vals.map(esc).join(", ")}</span>
+    </div>`).join("");
+
+  const transcript = note.transcript_preview
+    ? `<details><summary>Transcript preview</summary>
+         <div class="transcript-block">${esc(note.transcript_preview)}</div>
+       </details>` : "";
+
+  const savedDate = new Date(note.savedAt).toLocaleString();
+
+  document.getElementById("result-content").innerHTML = `
+    <div class="result-card">
+      <div class="card-title">${esc(note.title || "Untitled")}</div>
+      <div class="card-meta">${tags}${durationStr}</div>
+
+      ${note.summary ? `
+        <div class="section-label">Summary</div>
+        <p class="summary">${esc(note.summary)}</p>` : ""}
+
+      ${keyPoints ? `
+        <div class="section-label">Key points</div>
+        <ul class="points">${keyPoints}</ul>` : ""}
+
+      ${queries ? `
+        <div class="section-label">Research queries — tap to search</div>
+        <div class="queries">${queries}</div>` : ""}
+
+      ${mentionRows ? `
+        <div class="section-label">Mentioned</div>
+        <div class="mentioned-grid">${mentionRows}</div>` : ""}
+
+      ${transcript}
+
+      <div class="section-label" style="margin-top:16px">Source</div>
+      <a class="query-btn" href="${esc(note.url)}" target="_blank" rel="noopener" style="font-size:12px">
+        <span class="q-icon">🔗</span>
+        <span class="q-text" style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(note.url)}</span>
+        <span class="q-arrow">↗</span>
+      </a>
+
+      <div class="card-actions">
+        <button class="action-btn" onclick="copyNote(${note.id})">📋 Copy notes</button>
+        <button class="action-btn danger" onclick="deleteAndHome(${note.id})">🗑 Delete</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Saved ${savedDate}</div>
+    </div>
+    <button class="action-btn" style="width:100%;justify-content:center;margin-bottom:16px" onclick="goHome()">← All notes</button>
+  `;
+}
+
+// ── Render home / history ─────────────────────────────────────────────────────
+function renderHome() {
+  const notes = loadNotes();
+  const empty = document.getElementById("empty");
+  const histSection = document.getElementById("history-section");
+  const histList = document.getElementById("history-list");
+
+  if (!notes.length) {
+    empty.style.display = "";
+    histSection.style.display = "none";
+    return;
+  }
+
+  empty.style.display = "none";
+  histSection.style.display = "";
+
+  histList.innerHTML = notes.map(n => `
+    <div class="hist-item" onclick="viewNote(${n.id})">
+      <div class="hi-icon">🎬</div>
+      <div class="hi-body">
+        <div class="hi-title">${esc(n.title || "Untitled")}</div>
+        <div class="hi-sub">${new Date(n.savedAt).toLocaleDateString()} · ${(n.tags||[]).join(", ")}</div>
+      </div>
+      <div class="hi-arrow">›</div>
+    </div>`).join("");
+}
+
+function viewNote(id) {
+  const note = loadNotes().find(n => n.id === id);
+  if (!note) return;
+  renderResult(note);
+  showScreen("result");
+}
+
+function deleteAndHome(id) {
+  if (!confirm("Delete this note?")) return;
+  deleteNote(id);
+  goHome();
+}
+
+// ── Copy to clipboard ──────────────────────────────────────────────────────
+function copyNote(id) {
+  const note = loadNotes().find(n => n.id === id);
+  if (!note) return;
+
+  const lines = [
+    `# ${note.title || "ReelDissect Note"}`,
+    `Source: ${note.url}`,
+    "",
+    note.summary || "",
+    "",
+    "## Key Points",
+    ...(note.key_points || []).map(p => `• ${p}`),
+    "",
+    "## Research",
+    ...(note.research_queries || []).map(q => `• ${q}`),
+  ];
+
+  const m = note.mentioned || {};
+  if (m.people?.length)   lines.push("", `People: ${m.people.join(", ")}`);
+  if ((m.sources||m.books_articles)?.length) lines.push(`Sources: ${(m.sources||m.books_articles).join(", ")}`);
+  if (m.concepts?.length) lines.push(`Concepts: ${m.concepts.join(", ")}`);
+
+  navigator.clipboard.writeText(lines.filter(l => l !== undefined).join("\n"))
+    .then(() => toast("Notes copied to clipboard!"))
+    .catch(() => toast("Clipboard access denied"));
+}
+
+// ── Escape HTML ───────────────────────────────────────────────────────────────
+function esc(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ── Service worker ────────────────────────────────────────────────────────────
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+
+// ── Entry point: check for shared URL ────────────────────────────────────────
+(function init() {
+  const params = new URLSearchParams(location.search);
+  // Web Share Target sends url / text / title as GET params
+  const sharedUrl  = params.get("url");
+  const sharedText = params.get("text");
+  const chosen     = sharedUrl || sharedText;
+
+  if (chosen) {
+    // Remove params from address bar without reloading
+    history.replaceState(null, "", "/");
+    analyze(chosen);
+  } else {
+    renderHome();
+  }
+})();
+</script>
+</body>
+</html>
