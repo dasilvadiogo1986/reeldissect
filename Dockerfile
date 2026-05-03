@@ -11,10 +11,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ── Pre-download Whisper "small" model so the first request isn't slow ─────────
+# ── Pre-download Whisper "tiny" model so the first request isn't slow ──────────
 RUN python -c "\
 from faster_whisper import WhisperModel; \
-WhisperModel('small', device='cpu', compute_type='int8'); \
+WhisperModel('tiny', device='cpu', compute_type='int8'); \
 print('Whisper model cached ✓')"
 
 # ── App source ────────────────────────────────────────────────────────────────

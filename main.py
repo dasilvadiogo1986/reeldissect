@@ -44,7 +44,7 @@ nim_client = OpenAI(
 # ---------------------------------------------------------------------------
 
 print("⏳ Loading Whisper model …")
-whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
+whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8")
 print("✅ Whisper model ready")
 
 # ---------------------------------------------------------------------------
